@@ -31,8 +31,17 @@ export const Visualizer: React.FC<VisualizerProps> = ({
     fire: { bg: '#0c0202', note: '#f97316', noteSharp: '#dc2626', hit: '#fca5a5', particle: '#fdba74' }
   };
 
-  const getNoteColor = (pitch: number, isActive: boolean, velocity: number = 80) => {
+  const getNoteColor = (pitch: number, isActive: boolean, velocity: number = 80, part: number = 1) => {
     const vOffset = (velocity / 127) * 20; // Brighter for harder hits
+    
+    // Duet Mode Colors (Part 1 = Blue, Part 2 = Orange)
+    if (part === 2) {
+      return isActive ? '#fb923c' : '#fb923c88'; // Orange
+    } else if (part === 1 && theme === 'neon') {
+      // Default Blue for Part 1 in Neon theme
+      return isActive ? '#22d3ee' : '#22d3ee88';
+    }
+
     if (theme === 'rainbow') {
       const hue = (pitch % 12) * 30;
       return `hsl(${hue}, ${isActive ? '100%' : '80%'}, ${isActive ? (60 + vOffset) + '%' : (40 + vOffset/2) + '%'})`;
@@ -58,6 +67,11 @@ export const Visualizer: React.FC<VisualizerProps> = ({
     ctx.closePath();
   };
 
+  const propsRef = useRef({ notes, currentTime, theme, particlesEnabled });
+  useEffect(() => {
+    propsRef.current = { notes, currentTime, theme, particlesEnabled };
+  }, [notes, currentTime, theme, particlesEnabled]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,6 +82,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
     const particles: {x: number, y: number, vx: number, vy: number, life: number, color: string}[] = [];
 
     const render = () => {
+      const { notes, currentTime, theme, particlesEnabled: currentParticles } = propsRef.current;
       const { width, height } = canvas;
       if (width === 0 || height === 0) {
         animationId = requestAnimationFrame(render);
@@ -112,12 +127,12 @@ export const Visualizer: React.FC<VisualizerProps> = ({
         if (isActive) activePitches.set(note.pitch, note.velocity);
 
         const x = (note.pitch - minPitch) * keyWidth;
-        const noteColor = getNoteColor(note.pitch, isActive, note.velocity);
+        const noteColor = getNoteColor(note.pitch, isActive, note.velocity, note.part);
 
         if (isActive) {
           ctx.shadowBlur = 15 + (note.velocity / 127) * 20;
           ctx.shadowColor = noteColor;
-          if (particlesEnabled && Math.random() > 0.6) {
+          if (currentParticles && Math.random() > 0.6) {
             particles.push({
               x: x + keyWidth / 2, y: hitLineY,
               vx: (Math.random() - 0.5) * 8, vy: -Math.random() * 6 - 2,
@@ -137,7 +152,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       });
 
       // Render Particles
-      if (particlesEnabled) {
+      if (currentParticles) {
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
           ctx.globalAlpha = p.life;
@@ -202,7 +217,7 @@ export const Visualizer: React.FC<VisualizerProps> = ({
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationId);
     };
-  }, [notes, currentTime, theme, particlesEnabled]);
+  }, [theme]); // Only restart if theme changes, notes and currentTime are handled via ref
 
   return <canvas ref={canvasRef} className="w-full h-full" />;
 };

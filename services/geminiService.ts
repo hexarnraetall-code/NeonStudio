@@ -58,13 +58,15 @@ function parseMidiCsv(text: string): MidiData {
       const start = parseFloat(parts[1]);
       const dur = parseFloat(parts[2]);
       const vel = parseInt(parts[3]);
+      const part = parts.length >= 5 ? parseInt(parts[4]) : 1;
 
       if (!isNaN(pitch) && !isNaN(start) && !isNaN(dur)) {
         notes.push({
           pitch: Math.min(108, Math.max(21, pitch)),
           startTime: Math.max(0, start),
           duration: Math.max(0.01, dur),
-          velocity: isNaN(vel) ? 80 : Math.min(127, Math.max(1, vel))
+          velocity: isNaN(vel) ? 80 : Math.min(127, Math.max(1, vel)),
+          part: isNaN(part) ? 1 : part
         });
       }
     }
@@ -125,6 +127,9 @@ export function cleanMidiData(data: MidiData): MidiData {
 export interface GenerationOptions {
   hellMode?: boolean;
   chaoticMode?: boolean;
+  duetMode?: boolean;
+  style?: string;
+  disableArpeggio?: boolean;
 }
 
 export async function generateMidiFromText(userPrompt: string, noteCount: number, duration: number, options: GenerationOptions = {}): Promise<MidiData> {
@@ -136,7 +141,16 @@ export async function generateMidiFromText(userPrompt: string, noteCount: number
     modeInstructions += "\n- HELL MODE: Create extremely high density, complex 'death waltz' style patterns. Think Touhou MIDI style: massive chords, rapid-fire notes, and intricate, overlapping melodies. Push the limits of polyphony.";
   }
   if (options.chaoticMode) {
-    modeInstructions += "\n- CHAOTIC MODE: Create an intense, high-energy 'breakcore' or 'boss fight' style. Use extremely short note durations (stuttering effects), rapid-fire rhythmic patterns, and unpredictable syncopation. The music should feel frantic, complex, and aggressive.";
+    modeInstructions += "\n- HALF-LIFE BLACK MIDI MODE: Create an overwhelming, industrial, and scientific 'Black MIDI' style. Use extreme note density (thousands of notes), glitchy mechanical patterns, and intense, dissonant soundscapes. Think Half-Life sound design meets impossible-to-play MIDI files. High polyphony and rapid-fire textures are required.";
+  }
+  if (options.duetMode) {
+    modeInstructions += "\n- DUET MODE: Create two distinct musical parts. Assign part 1 (Blue) to the main melody/lead and part 2 (Orange) to the accompaniment/harmony/bass. Use the 5th column in CSV for the part ID (1 or 2).";
+  }
+  if (options.style) {
+    modeInstructions += `\n- MUSICAL STYLE: The composition MUST strictly follow the characteristics of the ${options.style} genre.`;
+  }
+  if (options.disableArpeggio) {
+    modeInstructions += "\n- DISABLE ARPEGGIO: Do NOT use arpeggios. Notes in chords should be played simultaneously, not broken up into sequences.";
   }
 
   const systemPrompt = `You are a world-class AI Music Composer and Theorist. 
@@ -152,7 +166,9 @@ export async function generateMidiFromText(userPrompt: string, noteCount: number
 
     Output MUST be in strict CSV format:
     TEMPO:BPM
-    pitch, startTime, duration, velocity
+    pitch, startTime, duration, velocity, part
+    
+    Note: 'part' is 1 for Blue (Lead) and 2 for Orange (Accompaniment). Default is 1.
     
     Do not include any text other than the CSV.`;
 
@@ -215,14 +231,23 @@ export async function remixMidi(originalData: MidiData, styles: RemixStyles, opt
   const noteRange = Math.max(...originalData.notes.map(n => n.pitch)) - Math.min(...originalData.notes.map(n => n.pitch));
   
   // Send a representative chunk for context
-  const inputCsv = originalData.notes.slice(0, 600).map(n => `${n.pitch},${n.startTime.toFixed(3)},${n.duration.toFixed(3)},${n.velocity}`).join('\n');
+  const inputCsv = originalData.notes.slice(0, 600).map(n => `${n.pitch},${n.startTime.toFixed(3)},${n.duration.toFixed(3)},${n.velocity},${n.part || 1}`).join('\n');
 
   let modeInstructions = "";
   if (options.hellMode) {
     modeInstructions += "\n- HELL MODE INFLUENCE: Transform the remix into a high-density 'death waltz' style. Add massive layers and rapid note patterns.";
   }
   if (options.chaoticMode) {
-    modeInstructions += "\n- CHAOTIC MODE INFLUENCE: Infuse the remix with 'breakcore' energy. Use rapid, stuttering note patterns, intense syncopation, and frantic rhythmic shifts.";
+    modeInstructions += "\n- HALF-LIFE BLACK MIDI MODE INFLUENCE: Infuse the remix with industrial, scientific 'Black MIDI' energy. Use extreme note density, mechanical glitch patterns, and intense, dissonant soundscapes. Think Half-Life sound design meets impossible-to-play MIDI files.";
+  }
+  if (options.duetMode) {
+    modeInstructions += "\n- DUET MODE INFLUENCE: Split the remix into two distinct parts. Assign part 1 (Blue) to the primary melody and part 2 (Orange) to the supporting layers. Use the 5th column in CSV for part ID (1 or 2).";
+  }
+  if (options.style) {
+    modeInstructions += `\n- STYLE INFLUENCE: Re-arrange the piece in the style of ${options.style}.`;
+  }
+  if (options.disableArpeggio) {
+    modeInstructions += "\n- DISABLE ARPEGGIO INFLUENCE: Ensure the remix does not use arpeggios. Play chords as solid blocks.";
   }
 
   const prompt = `You are a Master Remix Engineer. 
@@ -235,9 +260,10 @@ export async function remixMidi(originalData: MidiData, styles: RemixStyles, opt
     2. REIMAGINE it using the style targets.
     3. IMPROVE the flow: Remove awkward gaps, fix clashing notes, and ensure a professional "produced" feel.
     4. VARIATION: Do not just repeat the input. Evolve it.
+    5. DUET: If Duet Mode is active, ensure clear separation between Part 1 and Part 2.
     
     TEMPO:${originalData.tempo}
-    SOURCE MIDI (CSV):
+    SOURCE MIDI (CSV format: pitch, startTime, duration, velocity, part):
     ${inputCsv}`;
 
   try {
@@ -265,7 +291,7 @@ export async function improveAndExtendMidi(originalData: MidiData, targetTotalDu
   
   const currentDuration = originalData.totalDuration;
   const contextNotes = notesToKeep.filter(n => n.startTime > currentDuration - 20); // More context
-  const contextCsv = contextNotes.map(n => `${n.pitch},${n.startTime.toFixed(3)},${n.duration.toFixed(3)},${n.velocity}`).join('\n');
+  const contextCsv = contextNotes.map(n => `${n.pitch},${n.startTime.toFixed(3)},${n.duration.toFixed(3)},${n.velocity},${n.part || 1}`).join('\n');
 
   const extensionTime = Math.max(10, targetTotalDuration - currentDuration);
 
@@ -276,7 +302,16 @@ export async function improveAndExtendMidi(originalData: MidiData, targetTotalDu
     modeInstructions += `\n- HELL MODE: Maximize polyphony and density.`;
   }
   if (options.chaoticMode) {
-    modeInstructions += "\n- CHAOTIC MODE: Use breakcore-style stuttering and rapid syncopation.";
+    modeInstructions += "\n- HALF-LIFE BLACK MIDI MODE: Use industrial, scientific 'Black MIDI' patterns. Extreme note density and mechanical glitches.";
+  }
+  if (options.duetMode) {
+    modeInstructions += "\n- DUET MODE: Continue the piece with two distinct voices. Part 1 (Blue) and Part 2 (Orange). Use the 5th column in CSV.";
+  }
+  if (options.style) {
+    modeInstructions += `\n- STYLE EXTENSION: Extend the piece in the style of ${options.style}.`;
+  }
+  if (options.disableArpeggio) {
+    modeInstructions += "\n- DISABLE ARPEGGIO: Ensure the extension does not introduce arpeggios.";
   }
 
   const prompt = `You are an Expert Music Continuator. 
@@ -286,10 +321,11 @@ export async function improveAndExtendMidi(originalData: MidiData, targetTotalDu
     2. EXTEND the piece by ${extensionTime.toFixed(1)}s.
     3. FIX ISSUES: Ensure no dead air and no mindless looping. 
     4. DEVELOPMENT: Introduce a new section or a variation that feels earned.
+    5. DUET: Maintain the two-voice structure if applicable.
     ${modeInstructions}
     
     TEMPO:${originalData.tempo}
-    CONTEXT MIDI (CSV):
+    CONTEXT MIDI (CSV format: pitch, startTime, duration, velocity, part):
     ${contextCsv}`;
 
   try {

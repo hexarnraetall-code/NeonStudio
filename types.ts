@@ -3,6 +3,7 @@ export interface Note {
   startTime: number; // Seconds
   duration: number; // Seconds
   velocity: number; // 0-127
+  part?: number; // 1 for Blue, 2 for Orange
 }
 
 export interface MidiData {

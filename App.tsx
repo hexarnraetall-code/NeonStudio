@@ -33,6 +33,11 @@ const App: React.FC = () => {
   const [visualSettings, setVisualSettings] = useState<{ theme: VisualizerTheme, is3D: boolean }>({ theme: 'neon', is3D: true });
   const [hellMode, setHellMode] = useState(false);
   const [chaoticMode, setChaoticMode] = useState(false);
+  const [duetMode, setDuetMode] = useState(false);
+  const [disableArpeggio, setDisableArpeggio] = useState(false);
+  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+
+  const STYLES = ['pop', 'rock', 'jazz', 'reggae', 'metal', 'blues', 'chopin', 'night club'];
 
   const startTimeRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
@@ -133,6 +138,7 @@ const App: React.FC = () => {
         
         <div className="flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
           <button 
+            type="button"
             onClick={togglePlay} 
             className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isPlaying ? 'bg-white text-black scale-110 shadow-[0_0_30px_rgba(255,255,255,0.4)]' : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'}`}
           >
@@ -145,6 +151,39 @@ const App: React.FC = () => {
 
         <div className="flex items-center gap-4">
           <button 
+            type="button"
+            onClick={() => {
+              if (!midiData) return;
+              const filtered = midiData.notes.filter(n => (n.part || 1) === 1);
+              if (filtered.length === 0) return;
+              const bytes = generateMidiFile(filtered);
+              const blob = new Blob([bytes], { type: 'audio/midi' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'blue_notes.mid'; a.click();
+            }} 
+            disabled={!midiData || !midiData.notes.some(n => (n.part || 1) === 1)}
+            className="text-[8px] font-black tracking-widest uppercase px-3 py-2 bg-blue-500 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-30"
+          >
+            Download Blue Notes
+          </button>
+          <button 
+            type="button"
+            onClick={() => {
+              if (!midiData) return;
+              const filtered = midiData.notes.filter(n => n.part === 2);
+              if (filtered.length === 0) return;
+              const bytes = generateMidiFile(filtered);
+              const blob = new Blob([bytes], { type: 'audio/midi' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'orange_notes.mid'; a.click();
+            }} 
+            disabled={!midiData || !midiData.notes.some(n => n.part === 2)}
+            className="text-[8px] font-black tracking-widest uppercase px-3 py-2 bg-orange-500 text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-30"
+          >
+            Download Orange Notes
+          </button>
+          <button 
+            type="button"
             onClick={() => {
               if (!midiData) return;
               const bytes = generateMidiFile(midiData.notes);
@@ -190,11 +229,16 @@ const App: React.FC = () => {
                   className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
                 />
               </div>
+
+              <div className="pt-2 border-t border-white/5">
+                <Switch label="Disable Arpeggio" checked={disableArpeggio} onChange={setDisableArpeggio} color="cyan" />
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/5">
               {(['text', 'audio', 'upload'] as const).map(t => (
                 <button 
+                  type="button"
                   key={t} onClick={() => setActiveTab(t)} 
                   className={`py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === t ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'}`}
                 >
@@ -219,8 +263,9 @@ const App: React.FC = () => {
             )}
 
             <button 
+              type="button"
               onClick={() => {
-                const options: GenerationOptions = { hellMode, chaoticMode };
+                const options: GenerationOptions = { hellMode, chaoticMode, duetMode, style: selectedStyle || undefined, disableArpeggio };
                 if(activeTab === 'text') performAction(() => generateMidiFromText(promptText, noteCount, targetDuration, options));
                 if(activeTab === 'audio' && file) performAction(() => convertAudioToMidi(file, noteCount));
                 if(activeTab === 'upload' && midiFile) performAction(() => parseMidiFile(midiFile));
@@ -244,8 +289,26 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-              <Switch label="Chaotic" checked={chaoticMode} onChange={setChaoticMode} color="yellow" />
+              <Switch label="HL Black MIDI" checked={chaoticMode} onChange={setChaoticMode} color="yellow" />
               <Switch label="Hell Mode" checked={hellMode} onChange={setHellMode} color="red" />
+            </div>
+            <div className="flex justify-center pt-2">
+              <Switch label="Duet" checked={duetMode} onChange={setDuetMode} color="blue" />
+            </div>
+
+            <div className="pt-4 border-t border-white/5 space-y-3">
+              <h4 className="text-[9px] font-black text-white/40 uppercase tracking-widest text-center">Musical Style</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                {STYLES.map(style => (
+                  <Switch 
+                    key={style} 
+                    label={style} 
+                    checked={selectedStyle === style} 
+                    onChange={(checked) => setSelectedStyle(checked ? style : null)} 
+                    color="purple" 
+                  />
+                ))}
+              </div>
             </div>
           </section>
         </aside>
@@ -262,8 +325,8 @@ const App: React.FC = () => {
           </div>
 
           <div className="absolute top-6 right-6 z-10 flex gap-2">
-            <button onClick={() => setVisualSettings(s => ({...s, is3D: !s.is3D}))} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-white/5 transition-all ${visualSettings.is3D ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'bg-white/5 text-gray-500'}`}>3D Projection</button>
-            <button onClick={() => setVisualSettings(s => ({...s, theme: s.theme === 'neon' ? 'rainbow' : 'neon'}))} className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-white/5 transition-all ${visualSettings.theme === 'rainbow' ? 'bg-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'bg-white/5 text-gray-500'}`}>Palette</button>
+            <button onClick={() => setVisualSettings(s => ({...s, is3D: !s.is3D}))} type="button" className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-white/5 transition-all ${visualSettings.is3D ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'bg-white/5 text-gray-500'}`}>3D Projection</button>
+            <button onClick={() => setVisualSettings(s => ({...s, theme: s.theme === 'neon' ? 'rainbow' : 'neon'}))} type="button" className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border border-white/5 transition-all ${visualSettings.theme === 'rainbow' ? 'bg-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'bg-white/5 text-gray-500'}`}>Palette</button>
           </div>
 
           <div className={`w-full h-full transition-all duration-1000 ${visualSettings.is3D ? 'perspective-[2000px]' : ''}`}>
@@ -310,7 +373,8 @@ const App: React.FC = () => {
 
             <div className="space-y-3 pt-4 border-t border-white/5">
               <button 
-                onClick={() => midiData && performAction(() => remixMidi(midiData, styles, { hellMode, chaoticMode }))}
+                type="button"
+                onClick={() => midiData && performAction(() => remixMidi(midiData, styles, { hellMode, chaoticMode, duetMode, style: selectedStyle || undefined, disableArpeggio }))}
                 disabled={!midiData || status === ProcessingStatus.CONVERTING}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-20 active:scale-95 transition-all shadow-lg hover:brightness-110"
               >
@@ -319,7 +383,8 @@ const App: React.FC = () => {
               
               {/* Improve and Extend Button */}
               <button 
-                onClick={() => midiData && performAction(() => improveAndExtendMidi(midiData, targetDuration, noteCount, { hellMode, chaoticMode }))}
+                type="button"
+                onClick={() => midiData && performAction(() => improveAndExtendMidi(midiData, targetDuration, noteCount, { hellMode, chaoticMode, duetMode, style: selectedStyle || undefined, disableArpeggio }))}
                 disabled={!midiData || status === ProcessingStatus.CONVERTING}
                 className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-700 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-20 active:scale-95 transition-all shadow-lg border border-emerald-400/20 hover:from-emerald-500"
               >

@@ -4,7 +4,7 @@ interface SwitchProps {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
-  color?: 'red' | 'yellow' | 'cyan' | 'purple';
+  color?: 'red' | 'yellow' | 'cyan' | 'purple' | 'blue' | 'orange';
 }
 
 export const Switch: React.FC<SwitchProps> = ({ label, checked, onChange, color = 'cyan' }) => {
@@ -13,12 +13,15 @@ export const Switch: React.FC<SwitchProps> = ({ label, checked, onChange, color 
     yellow: 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]',
     cyan: 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]',
     purple: 'bg-purple-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]',
+    blue: 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]',
+    orange: 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]',
   };
 
   return (
     <div className="flex flex-col items-center gap-2">
       <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">{label}</span>
       <button
+        type="button"
         onClick={() => onChange(!checked)}
         className={`w-12 h-6 rounded-full p-1 transition-all duration-300 relative ${checked ? colorClasses[color] : 'bg-white/10'}`}
       >
